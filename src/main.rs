@@ -25,14 +25,24 @@ fn get_current_ssid() -> Option<String> {
 #[tokio::main]
 async fn main() {
     let mut previous_ssid: Option<String> = None;
+    let mut start_time =  Local::now();
 
     loop {
         match get_current_ssid() {
             Some(current_ssid) => {
                 if previous_ssid.as_ref() != Some(&current_ssid) {
-                    let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-                    println!("[{}] Network changed: {}", timestamp, current_ssid);
+                    start_time = Local::now();
+                    println!("[{}] Network changed: {}", start_time, current_ssid);
                     previous_ssid = Some(current_ssid);
+                } else {
+                    // calculate the time difference between the current and start time
+                    let time_diff = Local::now().signed_duration_since(start_time);
+                    // Subtract time_diff from 9 hours
+                    let remaining = 60 * 60 * 9 - time_diff.num_seconds();
+                    // Display the time remaining every hour
+                    if time_diff.num_seconds() % 3600 == 0 {
+                        println!("[{}] Time remaining: {} hour(s).", Local::now(), remaining);
+                    }
                 }
             },
             None => {
