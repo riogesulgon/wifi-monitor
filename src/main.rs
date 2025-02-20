@@ -1,7 +1,8 @@
+use rusqlite::{Connection, Result};
 use std::process::Command;
 use std::time::Duration;
 use tokio::time;
-use chrono::Local;
+use chrono::{Local, DateTime, NaiveDateTime, TimeZone};
 
 fn get_current_ssid() -> Option<String> {
     let output = Command::new("sh")
@@ -22,27 +23,67 @@ fn get_current_ssid() -> Option<String> {
     }
 }
 
+// Initialize SQLite database and create table if not exists
+fn init_db() -> Result<Connection> {
+    let conn = Connection::open("network_times.db")?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS network_change (
+            id INTEGER PRIMARY KEY,
+            start_time TEXT NOT NULL,
+            network_name TEXT NOT NULL
+        )",
+        [],
+    )?;
+    Ok(conn)
+}
+
+/// Update or insert the start time in the database
+fn update_start_time(conn: &Connection, start_time: &DateTime<Local>) -> Result<()> {
+    let network_name = get_current_ssid().unwrap_or_else(|| "Unknown".to_string());
+    conn.execute(
+        "INSERT INTO network_change (start_time, network_name) VALUES (?1, ?2)",
+        [
+            start_time.format("%Y-%m-%d %H:%M:%S").to_string(),
+            network_name,
+        ],
+    )?;
+    Ok(())
+}
+
+/// Get the earliest start time for today from the database
+fn get_earliest_start_time(conn: &Connection) -> String {
+    let date = Local::now().format("%Y-%m-%d").to_string();
+    let start_time: String = conn.query_row(
+        "SELECT start_time FROM network_change WHERE start_time LIKE ? ORDER BY id ASC LIMIT 1",
+        [date + "%"],  
+        |row| row.get(0),
+    )?;
+    start_time
+}
+
+
+
 #[tokio::main]
 async fn main() {
+    let conn = init_db().expect("Failed to initialize database");
     let mut previous_ssid: Option<String> = None;
-    let mut start_time =  Local::now();
 
     loop {
         match get_current_ssid() {
             Some(current_ssid) => {
                 if previous_ssid.as_ref() != Some(&current_ssid) {
-                    start_time = Local::now();
-                    println!("[{}] Network changed: {}", start_time, current_ssid);
+                    let current_time = Local::now();
+                    update_start_time(&conn, &current_time).expect("Failed to update start time");
+                    println!("[{}] Network changed: {}", current_time, current_ssid);
                     previous_ssid = Some(current_ssid);
                 } else {
-                    // calculate the time difference between the current and start time
-                    let time_diff = Local::now().signed_duration_since(start_time);
-                    // Subtract time_diff from 9 hours
-                    let remaining = 60 * 60 * 9 - time_diff.num_seconds();
-                    // Display the time remaining every hour
-                    if time_diff.num_seconds() % 3600 == 0 {
-                        println!("[{}] Time remaining: {} hour(s).", Local::now(), remaining);
-                    }
+                    let start_time = get_earliest_start_time(&conn).expect("Failed to retrieve start time");
+                    // calculate the elapsed time since the start_time
+                    // convert from: Elapsed time: -PT27587.97793S since 2025-02-19 23:48:38 +08:00
+                    // to: HH:MM:SS
+                    let elapsed_time = Local::now().signed_duration_since(start_time);
+                    let elapsed_time_str = str(elapsed_time);
+                    println!("Elapsed time: {} since {}", elapsed_time_str, start_time);
                 }
             },
             None => {
@@ -51,7 +92,6 @@ async fn main() {
             }
         }
 
-        // Wait for 5 seconds before checking again
         time::sleep(Duration::from_secs(5)).await;
     }
 }

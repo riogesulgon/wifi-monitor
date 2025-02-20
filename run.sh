@@ -16,9 +16,15 @@ start_wifilog() {
 
     # Build the project
     cargo build --release
+    # error if build fails
+    if [ $? -ne 0 ]; then
+        echo "Build failed. Exiting."
+        exit 1
+    fi
+#    cargo install --path .
 
     # Run the binary in background and redirect output
-    nohup cargo run --release > "$LOG_FILE" 2>&1 & 
+    nohup wifilog > "$LOG_FILE" 2>&1 & 
 
     # Capture the PID
     echo $! > "$PID_FILE"
