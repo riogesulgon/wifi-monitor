@@ -96,8 +96,10 @@ async fn main() {
                     let seconds = elapsed % 60;
                     // log every minute
                     if seconds == 0 {
-                        println!("SSID: {}, Elapsed time: {} hours, {} minutes, {} seconds", current_ssid,
-                                 hours, minutes, seconds);
+                        println!("SSID: {} | Since {} | Elapsed time: {} hours, {} minutes, {} seconds.",
+                             current_ssid,
+                             start_time.format("%Y-%m-%d %H:%M:%S"),
+                             hours, minutes, seconds);
                     }
                 }
             },
