@@ -1,3 +1,4 @@
+
 use rusqlite::{Connection, Result};
 use std::process::Command;
 use std::time::Duration;
@@ -10,7 +11,7 @@ fn get_current_ssid() -> Option<String> {
         .arg("networksetup -listallhardwareports | awk '/Wi-Fi|AirPort/{getline; print $NF}' | xargs networksetup -getairportnetwork | cut -d \" \" -f4")
         .output()
         .ok()?;
-    
+
     if output.status.success() {
         let ssid = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !ssid.is_empty() {
@@ -51,17 +52,26 @@ fn update_start_time(conn: &Connection, start_time: &DateTime<Local>) -> Result<
 }
 
 /// Get the earliest start time for today from the database
-fn get_earliest_start_time(conn: &Connection) -> String {
+fn get_earliest_start_date(conn: &Connection) -> Result<DateTime<Local>> {
     let date = Local::now().format("%Y-%m-%d").to_string();
-    let start_time: String = conn.query_row(
-        "SELECT start_time FROM network_change WHERE start_time LIKE ? ORDER BY id ASC LIMIT 1",
-        [date + "%"],  
-        |row| row.get(0),
-    )?;
-    start_time
+    let mut statement = conn.prepare("SELECT start_time FROM network_change \
+        WHERE start_time LIKE ? ORDER BY id ASC LIMIT 1")?;
+    let first_row = statement.query_row([date + "%"], |row| {
+          Ok(row.get::<_, String>(0)?)
+    });
+
+    match first_row {
+        Ok(date) => {
+            let naive_date = NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S").unwrap();
+            let local_date = Local.from_local_datetime(&naive_date).earliest().unwrap();
+            Ok(local_date)
+        },
+        Err(e) => {
+            println!("Error: {}", e);
+            Err(e)
+        }
+    }
 }
-
-
 
 #[tokio::main]
 async fn main() {
@@ -77,13 +87,15 @@ async fn main() {
                     println!("[{}] Network changed: {}", current_time, current_ssid);
                     previous_ssid = Some(current_ssid);
                 } else {
-                    let start_time = get_earliest_start_time(&conn).expect("Failed to retrieve start time");
+                    let start_time = get_earliest_start_date(&conn).expect("Failed to retrieve start time");
+                    println!("start_time: {}", start_time);
                     // calculate the elapsed time since the start_time
-                    // convert from: Elapsed time: -PT27587.97793S since 2025-02-19 23:48:38 +08:00
-                    // to: HH:MM:SS
-                    let elapsed_time = Local::now().signed_duration_since(start_time);
-                    let elapsed_time_str = str(elapsed_time);
-                    println!("Elapsed time: {} since {}", elapsed_time_str, start_time);
+                    let elapsed = Local::now().signed_duration_since(start_time).num_seconds();
+                    // convert the elapsed time to hours, minutes, and seconds
+                    let hours = elapsed / 3600;
+                    let minutes = (elapsed % 3600) / 60;
+                    let seconds = elapsed % 60;
+                    println!("Elapsed time: {} hours, {} minutes, {} seconds", hours, minutes, seconds);
                 }
             },
             None => {

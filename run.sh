@@ -21,7 +21,7 @@ start_wifilog() {
         echo "Build failed. Exiting."
         exit 1
     fi
-#    cargo install --path .
+    cargo install --path .
 
     # Run the binary in background and redirect output
     nohup wifilog > "$LOG_FILE" 2>&1 & 
