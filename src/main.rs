@@ -88,14 +88,17 @@ async fn main() {
                     previous_ssid = Some(current_ssid);
                 } else {
                     let start_time = get_earliest_start_date(&conn).expect("Failed to retrieve start time");
-                    println!("start_time: {}", start_time);
                     // calculate the elapsed time since the start_time
                     let elapsed = Local::now().signed_duration_since(start_time).num_seconds();
                     // convert the elapsed time to hours, minutes, and seconds
                     let hours = elapsed / 3600;
                     let minutes = (elapsed % 3600) / 60;
                     let seconds = elapsed % 60;
-                    println!("Elapsed time: {} hours, {} minutes, {} seconds", hours, minutes, seconds);
+                    // log every minute
+                    if seconds == 0 {
+                        println!("SSID: {}, Elapsed time: {} hours, {} minutes, {} seconds", current_ssid,
+                                 hours, minutes, seconds);
+                    }
                 }
             },
             None => {
