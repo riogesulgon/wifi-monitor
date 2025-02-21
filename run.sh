@@ -15,6 +15,7 @@ start_wifilog() {
     fi
 
     # Build the project
+    git pull
     cargo build --release
     # error if build fails
     if [ $? -ne 0 ]; then
@@ -24,7 +25,7 @@ start_wifilog() {
     cargo install --path .
 
     # Run the binary in background and redirect output
-    nohup wifilog > "$LOG_FILE" 2>&1 & 
+    nohup wifilog >> "$LOG_FILE" 2>&1 &
 
     # Capture the PID
     echo $! > "$PID_FILE"
