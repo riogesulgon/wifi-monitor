@@ -68,7 +68,7 @@ fn get_earliest_start_date(conn: &Connection) -> Result<DateTime<Local>> {
         },
         Err(e) => {
             println!("Error: {}", e);
-            Err(e)
+            Ok(Local::now())
         }
     }
 }
